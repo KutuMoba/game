@@ -1,0 +1,124 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+  <head>
+    <meta charset="UTF-8" />
+    <meta
+      name="viewport"
+      content="width=device-width, user-scalable=no, initial-scale=1.0, maximum-scale=1.0, minimum-scale=1.0"
+    />
+    <meta http-equiv="X-UA-Compatible" content="ie=edge" />
+    <link rel="stylesheet" href="css/style.css" />
+    <title>gamefunny</title>
+  </head>
+
+  <body>
+    <div class="container">
+      <div class="heading">
+        <p class="time"></p>
+        <button id="help" class="btn">help</button>
+        <button id="restart" class="btn">restart</button>
+      </div>
+      <div class="grid-container"></div>
+    </div>
+
+    <!-- ✅ Tambahan: info user dan saldo -->
+    <h3 id="user-info" style="text-align:center;">👤 Memuat...</h3>
+
+    <!-- Skrip asli -->
+    <script src="js/config.js"></script>
+    <script src="js/util.js"></script>
+    <script src="js/view.js"></script>
+    <script src="js/game.js"></script>
+    <script src="js/event.js"></script>
+    <script src="js/main.js"></script>
+
+    <!-- ✅ Tambahan: Script sinkronisasi saldo dengan GitHub -->
+    <script>
+      // Konfigurasi GitHub
+      const GITHUB_TOKEN = "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";
+      const REPO_OWNER = "datadebug57";
+      const REPO_NAME = "web";
+      const FILE_PATH = "users.json";
+      const BRANCH = "main";
+
+      const apiGetUrl = `https://api.github.com/repos/${REPO_OWNER}/${REPO_NAME}/contents/${FILE_PATH}`;
+      const rawFileUrl = `https://raw.githubusercontent.com/${REPO_OWNER}/${REPO_NAME}/${BRANCH}/${FILE_PATH}`;
+
+      let currentUser = null;
+      let saldo = 0;
+      let fileSha = "";
+
+      fetch(apiGetUrl, {
+        headers: {
+          Authorization: `Bearer ${GITHUB_TOKEN}`,
+          Accept: "application/vnd.github.v3+json"
+        }
+      })
+        .then(res => res.json())
+        .then(apiData => {
+          fileSha = apiData.sha;
+          const content = atob(apiData.content.replace(/\n/g, ""));
+          const jsonData = JSON.parse(content);
+
+          if (!jsonData || jsonData.length === 0) {
+            document.getElementById("user-info").textContent = "❌ Data kosong.";
+            return;
+          }
+
+          currentUser = jsonData[0]; // Ambil user pertama
+          saldo = parseInt(currentUser.saldo) || 0;
+          updateTampilan();
+        })
+        .catch(err => {
+          console.error("❌ Gagal ambil JSON:", err);
+          document.getElementById("user-info").textContent = "❌ Gagal ambil data dari GitHub.";
+        });
+
+      function menang() {
+        saldo += 1000;
+        currentUser.saldo = saldo;
+        updateTampilan();
+        simpanKeGitHub();
+      }
+
+      function kalah() {
+        saldo -= 1000;
+        currentUser.saldo = saldo;
+        updateTampilan();
+        simpanKeGitHub();
+      }
+
+      function updateTampilan() {
+        document.getElementById("user-info").textContent =
+          `👤 Username: ${currentUser.username} | 💰 Saldo: Rp${saldo.toLocaleString()}`;
+      }
+
+      function simpanKeGitHub() {
+        const updatedData = [currentUser];
+        const updatedContent = btoa(JSON.stringify(updatedData, null, 2));
+
+        fetch(apiGetUrl, {
+          method: "PUT",
+          headers: {
+            Authorization: `Bearer ${GITHUB_TOKEN}`,
+            Accept: "application/vnd.github.v3+json"
+          },
+          body: JSON.stringify({
+            message: `Update saldo ${currentUser.username} => Rp${saldo}`,
+            content: updatedContent,
+            sha: fileSha,
+            branch: BRANCH
+          })
+        })
+          .then(res => res.json())
+          .then(data => {
+            console.log("✅ Saldo berhasil disimpan ke GitHub.");
+            fileSha = data.content.sha; // Update SHA untuk update selanjutnya
+          })
+          .catch(err => {
+            console.error("❌ Gagal update ke GitHub:", err);
+          });
+      }
+    </script>
+  </body>
+</html>
